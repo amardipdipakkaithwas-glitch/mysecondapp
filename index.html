@@ -1,0 +1,893 @@
+// ============================================================================
+// 1. MainActivity.kt (package com.example)
+// ============================================================================
+package com.example
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import com.example.ui.navigation.AppNavigation
+import com.example.ui.theme.SscScholarTheme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            SscScholarTheme {
+                AppNavigation()
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 2. data/model/FirestoreModels.kt
+// ============================================================================
+package com.example.data.model
+
+import androidx.annotation.Keep
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.IgnoreExtraProperties
+import com.google.firebase.firestore.ServerTimestamp
+
+enum class BoardMedium(val label: String) {
+    ENGLISH("English Medium"),
+    SEMI_ENGLISH("Semi-English"),
+    MARATHI("Marathi Medium");
+
+    companion object {
+        fun safeValueOf(raw: String?): BoardMedium =
+            entries.firstOrNull { it.name == raw } ?: ENGLISH
+    }
+}
+
+enum class TaskPriority(val label: String) {
+    HIGH("High"),
+    MEDIUM("Medium"),
+    LOW("Low");
+
+    companion object {
+        fun safeValueOf(raw: String?): TaskPriority =
+            entries.firstOrNull { it.name == raw } ?: MEDIUM
+    }
+}
+
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+    data class Error(val message: String) : UiState<Nothing>
+}
+
+@Keep
+@IgnoreExtraProperties
+data class UserStudyProfile(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val displayName: String = "",
+    val targetPercentage: Long = 90L,
+    val dailyGoalMinutes: Long = 150L,
+    val boardMedium: String = BoardMedium.ENGLISH.name,
+    val currentStreak: Long = 1L,
+    val lastActiveDate: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class StudyTask(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val subject: String = "",
+    val scheduledDate: String = "",
+    val durationMinutes: Long = 45L,
+    val priority: String = TaskPriority.MEDIUM.name,
+    val completed: Boolean = false,
+    val notes: String? = null,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class ChapterProgress(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val chapterId: String = "",
+    val subjectId: String = "",
+    val revised: Boolean = false,
+    val bookmarked: Boolean = false,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class MockAttempt(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val testId: String = "",
+    val testTitle: String = "",
+    val subject: String = "",
+    val score: Long = 0L,
+    val totalQuestions: Long = 1L,
+    val timeSpentSeconds: Long = 0L,
+    @ServerTimestamp val createdAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class UploadedTextbook(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val textbookId: String = "",
+    val title: String = "",
+    val fileName: String = "",
+    val localFileName: String = "",
+    val pageCount: Long = 1L,
+    val fileSizeBytes: Long = 1L,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+// ============================================================================
+// 3. data/model/CurriculumModels.kt
+// ============================================================================
+package com.example.data.model
+
+import androidx.compose.ui.graphics.Color
+
+data class SscSubject(
+    val id: String,
+    val name: String,
+    val shortName: String,
+    val boardMarks: Int,
+    val examDuration: String,
+    val accentColor: Color,
+    val description: String,
+    val chapters: List<SscChapter>
+)
+
+data class SscChapter(
+    val id: String,
+    val subjectId: String,
+    val number: Int,
+    val title: String,
+    val weightageMarks: String,
+    val overview: String,
+    val keyPoints: List<String>,
+    val formulasOrDefinitions: List<String>,
+    val boardHotspot: String
+)
+
+enum class LanguageKind(val label: String, val nativeName: String) {
+    ENGLISH("English", "English"),
+    HINDI("Hindi", "हिंदी"),
+    MARATHI("Marathi", "मराठी")
+}
+
+data class GrammarTopic(
+    val id: String,
+    val language: LanguageKind,
+    val title: String,
+    val marksWeightage: String,
+    val ruleSummary: String,
+    val examples: List<String>,
+    val quickDrillQuestion: String,
+    val quickDrillOptions: List<String>,
+    val quickDrillCorrectIndex: Int,
+    val quickDrillExplanation: String
+)
+
+data class WritingSkillTemplate(
+    val id: String,
+    val language: LanguageKind,
+    val title: String,
+    val marks: String,
+    val markingScheme: List<String>,
+    val formatOutline: List<String>,
+    val modelExampleTitle: String,
+    val modelExampleBody: String,
+    val examinerTip: String
+)
+
+data class PaperSection(
+    val heading: String,
+    val marks: String,
+    val questions: List<String>,
+    val modelAnswers: List<String>
+)
+
+enum class PaperCategory(val label: String) {
+    PAST_BOARD("Past Board Paper"),
+    MODEL_PAPER("Model Paper (2026)")
+}
+
+data class PastPaper(
+    val id: String,
+    val subjectId: String,
+    val subjectName: String,
+    val yearLabel: String,
+    val paperTitle: String,
+    val totalMarks: Int,
+    val duration: String,
+    val instructions: List<String>,
+    val sections: List<PaperSection>,
+    val category: PaperCategory = PaperCategory.PAST_BOARD
+)
+
+data class TextbookPdfInfo(
+    val id: String,
+    val subjectId: String,
+    val title: String,
+    val subtitle: String,
+    val medium: String,
+    val chaptersIncluded: List<String>,
+    val officialPortalUrl: String,
+    val accentColor: Color
+)
+
+data class MockQuestion(
+    val id: String,
+    val prompt: String,
+    val options: List<String>,
+    val correctIndex: Int,
+    val explanation: String
+)
+
+data class MockTest(
+    val id: String,
+    val title: String,
+    val subject: String,
+    val durationMinutes: Int,
+    val difficulty: String,
+    val accentColor: Color,
+    val questions: List<MockQuestion>
+)
+
+// ============================================================================
+// 4. viewmodel/StudyViewModel.kt
+// ============================================================================
+package com.example.viewmodel
+
+import android.content.Context
+import android.net.Uri
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.data.firebase.StudyRepository
+import com.example.data.model.BoardMedium
+import com.example.data.model.ChapterProgress
+import com.example.data.model.MockAttempt
+import com.example.data.model.StudyTask
+import com.example.data.model.TaskPriority
+import com.example.data.model.UiState
+import com.example.data.model.UploadedTextbook
+import com.example.data.model.UserStudyProfile
+import com.example.pdf.PdfStudyEngine
+import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class StudyViewModel(
+    private val repository: StudyRepository,
+    private val currentUserId: String,
+    initialDisplayName: String?
+) : ViewModel() {
+
+    private val _events = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val events: SharedFlow<String> = _events.asSharedFlow()
+
+    val userProfile: StateFlow<UiState<UserStudyProfile?>> =
+        repository.observeUserProfile(currentUserId)
+            .map<UserStudyProfile?, UiState<UserStudyProfile?>> { UiState.Success(it) }
+            .catch { error ->
+                val firestoreError = unwrapFirestoreException(error)
+                if (firestoreError == null && error is CancellationException) throw error
+                val rootError = firestoreError ?: error
+                Log.w(TAG, "Error observing profile", rootError)
+                emit(UiState.Error(rootError.message ?: "Failed to load study profile"))
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState.Loading)
+
+    val studyTasks: StateFlow<UiState<List<StudyTask>>> =
+        repository.observeStudyTasks(currentUserId)
+            .map<List<StudyTask>, UiState<List<StudyTask>>> { UiState.Success(it) }
+            .catch { error ->
+                val firestoreError = unwrapFirestoreException(error)
+                if (firestoreError == null && error is CancellationException) throw error
+                val rootError = firestoreError ?: error
+                Log.w(TAG, "Error observing study tasks", rootError)
+                emit(UiState.Error(rootError.message ?: "Failed to load study planner"))
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState.Loading)
+
+    val chapterProgressMap: StateFlow<UiState<Map<String, ChapterProgress>>> =
+        repository.observeChapterProgress(currentUserId)
+            .map<List<ChapterProgress>, UiState<Map<String, ChapterProgress>>> { list ->
+                UiState.Success(list.associateBy { it.chapterId })
+            }
+            .catch { error ->
+                val firestoreError = unwrapFirestoreException(error)
+                if (firestoreError == null && error is CancellationException) throw error
+                val rootError = firestoreError ?: error
+                Log.w(TAG, "Error observing chapter progress", rootError)
+                emit(UiState.Error(rootError.message ?: "Failed to load chapter progress"))
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState.Loading)
+
+    val mockAttempts: StateFlow<UiState<List<MockAttempt>>> =
+        repository.observeMockAttempts(currentUserId)
+            .map<List<MockAttempt>, UiState<List<MockAttempt>>> { UiState.Success(it) }
+            .catch { error ->
+                val firestoreError = unwrapFirestoreException(error)
+                if (firestoreError == null && error is CancellationException) throw error
+                val rootError = firestoreError ?: error
+                Log.w(TAG, "Error observing mock attempts", rootError)
+                emit(UiState.Error(rootError.message ?: "Failed to load mock attempts"))
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState.Loading)
+
+    val uploadedTextbooksMap: StateFlow<UiState<Map<String, UploadedTextbook>>> =
+        repository.observeUploadedTextbooks(currentUserId)
+            .map<List<UploadedTextbook>, UiState<Map<String, UploadedTextbook>>> { list ->
+                UiState.Success(list.associateBy { it.textbookId })
+            }
+            .catch { error ->
+                val firestoreError = unwrapFirestoreException(error)
+                if (firestoreError == null && error is CancellationException) throw error
+                val rootError = firestoreError ?: error
+                Log.w(TAG, "Error observing uploaded textbooks", rootError)
+                emit(UiState.Error(rootError.message ?: "Failed to load uploaded textbooks"))
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState.Loading)
+
+    init {
+        viewModelScope.launch {
+            repository.ensureUserProfile(currentUserId, initialDisplayName)
+        }
+    }
+
+    fun addStudyTask(
+        title: String,
+        subject: String,
+        scheduledDate: String,
+        durationMinutes: Int,
+        priority: TaskPriority,
+        notes: String?
+    ) {
+        viewModelScope.launch {
+            val result = repository.addStudyTask(
+                userId = currentUserId,
+                title = title,
+                subject = subject,
+                scheduledDate = scheduledDate,
+                durationMinutes = durationMinutes,
+                priority = priority,
+                notes = notes
+            )
+            result.onSuccess { _events.tryEmit("Added task to your study planner") }
+                .onFailure { err -> _events.tryEmit(err.localizedMessage ?: "Could not save task") }
+        }
+    }
+
+    fun toggleTaskCompletion(task: StudyTask) {
+        viewModelScope.launch {
+            val profile = (userProfile.value as? UiState.Success)?.data
+            val result = repository.toggleTaskCompletion(
+                userId = currentUserId,
+                taskId = task.id,
+                completed = !task.completed,
+                currentProfile = profile
+            )
+            result.onFailure { err -> _events.tryEmit(err.localizedMessage ?: "Failed to update task") }
+        }
+    }
+
+    fun deleteStudyTask(taskId: String) {
+        viewModelScope.launch {
+            val result = repository.deleteStudyTask(currentUserId, taskId)
+            result.onSuccess { _events.tryEmit("Task removed") }
+                .onFailure { err -> _events.tryEmit(err.localizedMessage ?: "Could not remove task") }
+        }
+    }
+
+    fun addSuggestedDailyPlan(dateIso: String) {
+        viewModelScope.launch {
+            val suggestions = listOf(
+                Triple("Revise Science 1 — Gravitation & Optics Formulas", "Science 1", 45),
+                Triple("Solve 10 Quadratic & AP Practice Problems", "Algebra", 45),
+                Triple("Practice Marathi & Hindi Letter Writing Format", "Marathi / Hindi", 30),
+                Triple("Solve 2024 Board Paper Section I & II", "English", 30)
+            )
+            var failures = 0
+            for ((title, subject, mins) in suggestions) {
+                val res = repository.addStudyTask(
+                    userId = currentUserId,
+                    title = title,
+                    subject = subject,
+                    scheduledDate = dateIso,
+                    durationMinutes = mins,
+                    priority = TaskPriority.HIGH,
+                    notes = "SSC Balanced Daily Study Block"
+                )
+                if (res.isFailure) failures++
+            }
+            _events.tryEmit(
+                if (failures == 0) "Balanced 2.5-hr SSC plan added for $dateIso"
+                else "Some suggested tasks could not be saved"
+            )
+        }
+    }
+
+    fun toggleChapterRevised(chapterId: String, subjectId: String) {
+        viewModelScope.launch {
+            val existing = (chapterProgressMap.value as? UiState.Success)?.data?.get(chapterId)
+            val nextRevised = !(existing?.revised ?: false)
+            val currentBookmarked = existing?.bookmarked ?: false
+            val res = repository.upsertChapterProgress(
+                userId = currentUserId,
+                chapterId = chapterId,
+                subjectId = subjectId,
+                revised = nextRevised,
+                bookmarked = currentBookmarked
+            )
+            res.onSuccess {
+                _events.tryEmit(if (nextRevised) "Marked chapter as revised" else "Unmarked revision")
+            }.onFailure { err ->
+                _events.tryEmit(err.localizedMessage ?: "Could not update chapter progress")
+            }
+        }
+    }
+
+    fun toggleChapterBookmarked(chapterId: String, subjectId: String) {
+        viewModelScope.launch {
+            val existing = (chapterProgressMap.value as? UiState.Success)?.data?.get(chapterId)
+            val currentRevised = existing?.revised ?: false
+            val nextBookmarked = !(existing?.bookmarked ?: false)
+            val res = repository.upsertChapterProgress(
+                userId = currentUserId,
+                chapterId = chapterId,
+                subjectId = subjectId,
+                revised = currentRevised,
+                bookmarked = nextBookmarked
+            )
+            res.onSuccess {
+                _events.tryEmit(if (nextBookmarked) "Bookmarked for quick revision" else "Bookmark removed")
+            }.onFailure { err ->
+                _events.tryEmit(err.localizedMessage ?: "Could not update bookmark")
+            }
+        }
+    }
+
+    fun saveMockAttempt(
+        testId: String,
+        testTitle: String,
+        subject: String,
+        score: Int,
+        totalQuestions: Int,
+        timeSpentSeconds: Int
+    ) {
+        viewModelScope.launch {
+            val res = repository.saveMockAttempt(
+                userId = currentUserId,
+                testId = testId,
+                testTitle = testTitle,
+                subject = subject,
+                score = score,
+                totalQuestions = totalQuestions,
+                timeSpentSeconds = timeSpentSeconds
+            )
+            res.onSuccess { _events.tryEmit("Mock test score saved to your progress") }
+                .onFailure { err -> _events.tryEmit(err.localizedMessage ?: "Could not save mock score") }
+        }
+    }
+
+    fun updateProfileGoals(
+        displayName: String,
+        targetPercentage: Int,
+        dailyGoalMinutes: Int,
+        boardMedium: BoardMedium
+    ) {
+        viewModelScope.launch {
+            val res = repository.updateProfileGoals(
+                userId = currentUserId,
+                displayName = displayName,
+                targetPercentage = targetPercentage,
+                dailyGoalMinutes = dailyGoalMinutes,
+                boardMedium = boardMedium
+            )
+            res.onSuccess { _events.tryEmit("Study goals updated") }
+                .onFailure { err -> _events.tryEmit(err.localizedMessage ?: "Could not update goals") }
+        }
+    }
+
+    fun uploadTextbookPdf(
+        context: Context,
+        textbookId: String,
+        title: String,
+        uri: Uri
+    ) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            try {
+                val info = PdfStudyEngine.importTextbookPdf(appContext, textbookId, uri)
+                val resolvedTitle = title.trim().ifEmpty {
+                    info.displayName.removeSuffix(".pdf").removeSuffix(".PDF")
+                }
+                val res = repository.saveUploadedTextbook(
+                    userId = currentUserId,
+                    textbookId = textbookId,
+                    title = resolvedTitle,
+                    fileName = info.displayName,
+                    localFileName = info.localFileName,
+                    pageCount = info.pageCount,
+                    fileSizeBytes = info.fileSizeBytes
+                )
+                res.onSuccess {
+                    _events.tryEmit("Uploaded exact PDF: ${info.displayName} (${info.pageCount} pages)")
+                }.onFailure { err ->
+                    _events.tryEmit(err.localizedMessage ?: "Could not save textbook metadata")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed importing textbook PDF", e)
+                _events.tryEmit(e.localizedMessage ?: "Could not import selected PDF file")
+            }
+        }
+    }
+
+    fun removeUploadedTextbook(
+        context: Context,
+        textbookId: String,
+        localFileName: String
+    ) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            PdfStudyEngine.deleteUploadedTextbookFile(appContext, localFileName)
+            val res = repository.deleteUploadedTextbook(currentUserId, textbookId)
+            res.onSuccess { _events.tryEmit("Removed uploaded textbook PDF") }
+                .onFailure { err -> _events.tryEmit(err.localizedMessage ?: "Could not remove textbook record") }
+        }
+    }
+
+    private fun unwrapFirestoreException(error: Throwable): FirebaseFirestoreException? =
+        generateSequence(error) { it.cause }
+            .filterIsInstance<FirebaseFirestoreException>()
+            .firstOrNull()
+
+    private companion object {
+        const val TAG = "StudyViewModel"
+        const val STOP_TIMEOUT_MILLIS = 5000L
+    }
+}
+
+// ============================================================================
+// 5. ui/navigation/AppNavigation.kt
+// ============================================================================
+package com.example.ui.navigation
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import androidx.credentials.CredentialManager
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.example.R
+import com.example.data.firebase.StudyRepository
+import com.example.data.firebase.authStateFlow
+import com.example.data.firebase.signOut
+import com.example.pdf.PdfSource
+import com.example.ui.components.InAppPdfViewerDialog
+import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.HomeDashboardScreen
+import com.example.ui.screens.LibrarySection
+import com.example.ui.screens.MockTestsScreen
+import com.example.ui.screens.NotesAndLanguagesHubScreen
+import com.example.ui.screens.NotesHubSection
+import com.example.ui.screens.PapersAndTextbooksScreen
+import com.example.ui.screens.StudyPlannerScreen
+import com.example.viewmodel.StudyViewModel
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
+
+const val ROUTE_HOME = "home"
+const val ROUTE_NOTES = "notes"
+const val ROUTE_LIBRARY = "library"
+const val ROUTE_TESTS = "tests"
+const val ROUTE_PLANNER = "planner"
+
+private data class NavTab(
+    val route: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+)
+
+private val TopTabs = listOf(
+    NavTab(ROUTE_HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
+    NavTab(ROUTE_NOTES, "Notes", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+    NavTab(ROUTE_LIBRARY, "Library", Icons.Filled.PictureAsPdf, Icons.Outlined.PictureAsPdf),
+    NavTab(ROUTE_TESTS, "Tests", Icons.Filled.Quiz, Icons.Outlined.Quiz),
+    NavTab(ROUTE_PLANNER, "Planner", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth)
+)
+
+@Composable
+fun AppNavigation(auth: FirebaseAuth = Firebase.auth) {
+    val currentUser by auth.authStateFlow().collectAsStateWithLifecycle(initialValue = auth.currentUser)
+    val user = currentUser
+
+    if (user == null) {
+        AuthScreen(onAuthSuccess = { })
+    } else {
+        key(user.uid) {
+            AuthenticatedScholarApp(
+                currentUserId = user.uid,
+                displayName = user.displayName
+            )
+        }
+    }
+}
+
+@Composable
+private fun AuthenticatedScholarApp(
+    currentUserId: String,
+    displayName: String?
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val credentialManager = remember(context) { CredentialManager.create(context) }
+
+    val viewModel: StudyViewModel = viewModel(
+        key = currentUserId,
+        factory = viewModelFactory {
+            initializer {
+                val app = checkNotNull(this[APPLICATION_KEY]) {
+                    "APPLICATION_KEY missing from CreationExtras"
+                }
+                val databaseId = app.getString(R.string.firestore_database_id)
+                val db = FirebaseFirestore.getInstance(databaseId)
+                StudyViewModel(
+                    repository = StudyRepository(db),
+                    currentUserId = currentUserId,
+                    initialDisplayName = displayName
+                )
+            }
+        }
+    )
+
+    val profileState by viewModel.userProfile.collectAsStateWithLifecycle()
+    val tasksState by viewModel.studyTasks.collectAsStateWithLifecycle()
+    val progressState by viewModel.chapterProgressMap.collectAsStateWithLifecycle()
+    val attemptsState by viewModel.mockAttempts.collectAsStateWithLifecycle()
+    val uploadedTextbooksState by viewModel.uploadedTextbooksMap.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { msg -> snackbarHostState.showSnackbar(msg) }
+    }
+
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_HOME
+
+    var notesSection by remember { mutableStateOf(NotesHubSection.CHAPTERS) }
+    var notesSubjectId by remember { mutableStateOf("sci1") }
+    var librarySection by remember { mutableStateOf(LibrarySection.TEXTBOOKS) }
+    var activePdfSource by remember { mutableStateOf<PdfSource?>(null) }
+
+    fun navigateToTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useNavRail = maxWidth >= 600.dp
+
+        Scaffold(
+            contentWindowInsets = WindowInsets.safeDrawing,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            bottomBar = {
+                if (!useNavRail) {
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        TopTabs.forEach { tab ->
+                            val selected = currentRoute == tab.route
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = { navigateToTab(tab.route) },
+                                icon = {
+                                    Icon(
+                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                        contentDescription = tab.label
+                                    )
+                                },
+                                label = { Text(tab.label, maxLines = 1) },
+                                modifier = Modifier.testTag("nav_tab_${tab.route}")
+                            )
+                        }
+                    }
+                }
+            }
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                if (useNavRail) {
+                    NavigationRail(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxHeight()
+                    ) {
+                        TopTabs.forEach { tab ->
+                            val selected = currentRoute == tab.route
+                            NavigationRailItem(
+                                selected = selected,
+                                onClick = { navigateToTab(tab.route) },
+                                icon = {
+                                    Icon(
+                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                        contentDescription = tab.label
+                                    )
+                                },
+                                label = { Text(tab.label) },
+                                modifier = Modifier.testTag("nav_rail_${tab.route}")
+                            )
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    NavHost(navController = navController, startDestination = ROUTE_HOME) {
+                        composable(ROUTE_HOME) {
+                            HomeDashboardScreen(
+                                profileState = profileState,
+                                tasksState = tasksState,
+                                progressState = progressState,
+                                attemptsState = attemptsState,
+                                onOpenSubjectNotes = { subjId ->
+                                    notesSection = NotesHubSection.CHAPTERS
+                                    notesSubjectId = subjId
+                                    navigateToTab(ROUTE_NOTES)
+                                },
+                                onOpenGrammarStudio = {
+                                    notesSection = NotesHubSection.GRAMMAR_WRITING
+                                    navigateToTab(ROUTE_NOTES)
+                                },
+                                onOpenTextbooks = {
+                                    librarySection = LibrarySection.TEXTBOOKS
+                                    navigateToTab(ROUTE_LIBRARY)
+                                },
+                                onOpenPastPapers = {
+                                    librarySection = LibrarySection.PAST_PAPERS
+                                    navigateToTab(ROUTE_LIBRARY)
+                                },
+                                onOpenMockTests = { navigateToTab(ROUTE_TESTS) },
+                                onOpenPlanner = { navigateToTab(ROUTE_PLANNER) },
+                                onSignOutClick = {
+                                    signOut(credentialManager = credentialManager, scope = scope)
+                                }
+                            )
+                        }
+
+                        composable(ROUTE_NOTES) {
+                            NotesAndLanguagesHubScreen(
+                                initialSection = notesSection,
+                                initialSubjectId = notesSubjectId,
+                                progressState = progressState,
+                                onToggleChapterRevised = viewModel::toggleChapterRevised,
+                                onToggleChapterBookmarked = viewModel::toggleChapterBookmarked,
+                                onOpenPdfViewer = { activePdfSource = it }
+                            )
+                        }
+
+                        composable(ROUTE_LIBRARY) {
+                            PapersAndTextbooksScreen(
+                                initialSection = librarySection,
+                                uploadedTextbooksState = uploadedTextbooksState,
+                                onUploadTextbookPdf = { textbookId, title, uri ->
+                                    viewModel.uploadTextbookPdf(context, textbookId, title, uri)
+                                },
+                                onRemoveUploadedTextbook = { textbookId, localFileName ->
+                                    viewModel.removeUploadedTextbook(context, textbookId, localFileName)
+                                },
+                                onOpenPdfViewer = { activePdfSource = it }
+                            )
+                        }
+
+                        composable(ROUTE_TESTS) {
+                            MockTestsScreen(
+                                attemptsState = attemptsState,
+                                onSaveAttempt = viewModel::saveMockAttempt
+                            )
+                        }
+
+                        composable(ROUTE_PLANNER) {
+                            StudyPlannerScreen(
+                                profileState = profileState,
+                                tasksState = tasksState,
+                                onAddTask = viewModel::addStudyTask,
+                                onToggleTask = viewModel::toggleTaskCompletion,
+                                onDeleteTask = viewModel::deleteStudyTask,
+                                onGenerateSuggestedPlan = viewModel::addSuggestedDailyPlan,
+                                onUpdateGoals = viewModel::updateProfileGoals
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (activePdfSource != null) {
+            InAppPdfViewerDialog(
+                pdfSource = activePdfSource!!,
+                onDismiss = { activePdfSource = null }
+            )
+        }
+    }
+}
